@@ -13,4 +13,12 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
-        value: sqlite:///./makari_tv.db
+        fromDatabase:
+          name: makari-postgres
+          property: connectionString
+
+databases:
+  - name: makari-postgres
+    databaseName: makari_tv
+    user: makari_admin
+    plan: free
