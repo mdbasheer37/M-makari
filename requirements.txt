@@ -7,9 +7,10 @@ gunicorn>=21.2.0
 sqlalchemy>=2.0.30
 psycopg2-binary>=2.9.9
 
-# Auth
+# Auth — pin bcrypt to 4.0.1 to fix passlib compatibility
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
+passlib==1.7.4
+bcrypt==4.0.1
 
 # Utilities
 python-multipart>=0.0.9
