@@ -81,6 +81,7 @@ def reseed_database(db: Session = Depends(get_db), admin=Depends(get_current_adm
 
 
 # ── EMERGENCY: No auth required — only works if zero users exist ──
+@router.get("/setup")
 @router.post("/setup")
 def first_time_setup(db: Session = Depends(get_db)):
     """

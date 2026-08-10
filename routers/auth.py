@@ -55,3 +55,44 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me")
 def get_me(current_user: models.User = Depends(get_current_user)):
     return {"id": current_user.id, "username": current_user.username, "email": current_user.email, "full_name": current_user.full_name, "role": current_user.role, "avatar": current_user.avatar, "language": current_user.language}
+
+
+@router.get("/setup")
+@router.post("/setup")
+def setup_admin(db: Session = Depends(get_db)):
+    """
+    Open this URL in browser to create the admin account.
+    Safe — only creates admin if no users exist yet.
+    URL: /api/auth/setup
+    """
+    existing = db.query(models.User).filter(
+        models.User.email == "admin@makariilamictv.com"
+    ).first()
+
+    if existing:
+        return {
+            "status": "already_exists",
+            "message": "Admin account already exists. Login below.",
+            "email": "admin@makariilamictv.com",
+            "password": "admin123",
+        }
+
+    admin = models.User(
+        username="admin",
+        email="admin@makariilamictv.com",
+        full_name="Makari TV Admin",
+        hashed_password=get_password_hash("admin123"),
+        role=models.UserRole.admin,
+        is_active=True,
+    )
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+
+    return {
+        "status": "success",
+        "message": "✅ Admin created successfully!",
+        "email": "admin@makariilamictv.com",
+        "password": "admin123",
+        "next": "Now login at your app with these credentials",
+    }
