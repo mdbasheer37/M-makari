@@ -124,3 +124,63 @@ def first_time_setup(db: Session = Depends(get_db)):
         "password": "admin123",
         "next_step": "Login at /api/auth/login",
     }
+
+
+@router.post("/wipe-demo")
+def wipe_demo_data(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    """
+    Delete all seeded demo lectures, videos, audio and books.
+    Keeps: users, categories, live streams, real uploaded content.
+    Safe to call — only deletes records created by seed.py (first 20 lectures).
+    """
+    try:
+        # Delete audio files linked to demo lectures (IDs 1-20)
+        demo_ids = list(range(1, 21))
+
+        audio_deleted = db.query(models.AudioFile).filter(
+            models.AudioFile.lecture_id.in_(demo_ids)
+        ).delete(synchronize_session=False)
+
+        video_deleted = db.query(models.Video).filter(
+            models.Video.lecture_id.in_(demo_ids)
+        ).delete(synchronize_session=False)
+
+        # Delete favorites linked to demo lectures
+        db.query(models.Favorite).filter(
+            models.Favorite.lecture_id.in_(demo_ids)
+        ).delete(synchronize_session=False)
+
+        # Delete watch history linked to demo lectures
+        db.query(models.WatchHistory).filter(
+            models.WatchHistory.lecture_id.in_(demo_ids)
+        ).delete(synchronize_session=False)
+
+        # Delete the demo lectures themselves
+        lecture_deleted = db.query(models.Lecture).filter(
+            models.Lecture.id.in_(demo_ids)
+        ).delete(synchronize_session=False)
+
+        # Delete demo books (first 5)
+        book_deleted = db.query(models.Book).filter(
+            models.Book.id.in_(list(range(1, 6)))
+        ).delete(synchronize_session=False)
+
+        # Delete demo live streams
+        db.query(models.LiveStream).filter(
+            models.LiveStream.id.in_([1, 2, 3])
+        ).delete(synchronize_session=False)
+
+        db.commit()
+
+        return {
+            "message": f"✅ Demo data deleted successfully",
+            "deleted": {
+                "lectures": lecture_deleted,
+                "videos": video_deleted,
+                "audio": audio_deleted,
+                "books": book_deleted,
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
