@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from typing import Optional
 from database import get_db
@@ -17,21 +18,35 @@ class CategoryCreate(BaseModel):
     color: Optional[str] = None
     sort_order: int = 0
 
+
+def category_to_dict(c):
+    return {
+        "id": c.id, "name_en": c.name_en, "name_ha": c.name_ha, "slug": c.slug,
+        "description": c.description, "icon": c.icon, "color": c.color,
+        "thumbnail": c.thumbnail, "sort_order": c.sort_order,
+        "lecture_count": len(c.lectures),
+    }
+
+
 @router.get("/")
 def get_categories(db: Session = Depends(get_db)):
     cats = db.query(models.Category).filter(models.Category.is_active == True).order_by(models.Category.sort_order).all()
-    return [{"id": c.id, "name_en": c.name_en, "name_ha": c.name_ha, "slug": c.slug, "icon": c.icon, "color": c.color, "thumbnail": c.thumbnail, "lecture_count": len(c.lectures)} for c in cats]
+    return [category_to_dict(c) for c in cats]
 
 @router.post("/")
 def create_category(data: CategoryCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     cat = models.Category(**data.dict())
     db.add(cat)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=f"A category with slug '{data.slug}' already exists")
     db.refresh(cat)
-    return cat
+    return category_to_dict(cat)
 
 @router.get("/{slug}/lectures")
-def get_category_lectures(slug: str, skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
+def get_category_lectures(slug: str, skip: int = 0, limit: int = Query(20, le=100), db: Session = Depends(get_db)):
     cat = db.query(models.Category).filter(models.Category.slug == slug).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found")

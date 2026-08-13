@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional
 from database import get_db
 import models
 from auth_utils import get_current_admin
+from media_utils import normalize_youtube_url, save_upload, ALLOWED_VIDEO_EXTENSIONS, ALLOWED_VIDEO_CONTENT_TYPES, MAX_VIDEO_SIZE
 
 router = APIRouter()
 
@@ -18,6 +19,28 @@ class VideoCreate(BaseModel):
     quality: str = "720p"
     duration: Optional[int] = None
     is_downloadable: bool = True
+
+    @model_validator(mode="after")
+    def check_source(self):
+        if not self.stream_url and not self.youtube_url and not self.file_path:
+            raise ValueError("Provide at least one of stream_url, youtube_url, or file_path")
+        if self.youtube_url:
+            normalized = normalize_youtube_url(self.youtube_url)
+            if normalized:
+                # Genuinely a YouTube link — canonicalize it.
+                self.youtube_url = normalized
+                if not self.stream_url:
+                    self.stream_url = normalized
+            else:
+                # The admin form has a single "YouTube / Video URL" field that
+                # accepts either a YouTube link or a direct MP4/stream URL, and
+                # sends whatever was typed as both youtube_url and stream_url.
+                # Rather than reject a valid direct video link because it
+                # isn't YouTube, just treat it as a direct stream instead.
+                if not self.stream_url:
+                    self.stream_url = self.youtube_url
+                self.youtube_url = None
+        return self
 
 
 @router.get("/")
@@ -76,6 +99,31 @@ def create_video(
         "lecture_id": video.lecture_id,
         "message": "Video added successfully",
     }
+
+
+@router.post("/upload")
+async def upload_video(
+    lecture_id: int = Form(...),
+    title: str = Form(...),
+    quality: str = Form("720p"),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin),
+):
+    lec = db.query(models.Lecture).filter(models.Lecture.id == lecture_id).first()
+    if not lec:
+        raise HTTPException(status_code=404, detail=f"Lecture {lecture_id} not found")
+
+    path, size = await save_upload(file, "media/videos", ALLOWED_VIDEO_EXTENSIONS, ALLOWED_VIDEO_CONTENT_TYPES, MAX_VIDEO_SIZE)
+
+    video = models.Video(
+        lecture_id=lecture_id, title=title, file_path=f"/{path}", stream_url=f"/{path}",
+        quality=quality, file_size=size, is_downloadable=True, view_count=0,
+    )
+    db.add(video)
+    db.commit()
+    db.refresh(video)
+    return {"id": video.id, "title": video.title, "stream_url": video.stream_url, "file_size": size, "message": "Video uploaded successfully"}
 
 
 @router.get("/{video_id}")

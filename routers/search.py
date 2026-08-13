@@ -12,7 +12,7 @@ def search(
     content_type: str = None,
     category_id: int = None,
     skip: int = 0,
-    limit: int = 20,
+    limit: int = Query(20, le=50),
     db: Session = Depends(get_db)
 ):
     results = {"lectures": [], "books": [], "total": 0}

@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional
-from pydantic import BaseModel
-from datetime import datetime
+from pydantic import BaseModel, model_validator
+from datetime import datetime, timezone
 from database import get_db
 import models
-from auth_utils import get_current_admin
+from auth_utils import get_current_admin, get_current_user
 
 router = APIRouter()
 
@@ -56,7 +56,7 @@ def lecture_to_dict(lec):
 @router.get("/")
 def get_lectures(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = Query(100, le=100),
     category_id: Optional[int] = None,
     is_featured: Optional[bool] = None,
     is_trending: Optional[bool] = None,
@@ -160,6 +160,11 @@ def create_lecture(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
+    if not data.title_en.strip():
+        raise HTTPException(status_code=400, detail="Title is required")
+    if data.category_id is not None:
+        if not db.query(models.Category).filter(models.Category.id == data.category_id).first():
+            raise HTTPException(status_code=400, detail=f"Category {data.category_id} does not exist")
     lec = models.Lecture(
         title_en=data.title_en,
         title_ha=data.title_ha or data.title_en,
@@ -191,9 +196,11 @@ def update_lecture(
     lec = db.query(models.Lecture).filter(models.Lecture.id == lecture_id).first()
     if not lec:
         raise HTTPException(status_code=404, detail="Not found")
+    if data.category_id is not None:
+        if not db.query(models.Category).filter(models.Category.id == data.category_id).first():
+            raise HTTPException(status_code=400, detail=f"Category {data.category_id} does not exist")
     for key, val in data.dict(exclude_unset=True).items():
         setattr(lec, key, val)
-    lec.is_published = True
     db.commit()
     db.refresh(lec)
     return lecture_to_dict(lec)
@@ -215,3 +222,36 @@ def delete_lecture(
     db.delete(lec)
     db.commit()
     return {"message": "Deleted"}
+
+
+class WatchProgress(BaseModel):
+    progress: float = 0
+
+    @model_validator(mode="after")
+    def clamp(self):
+        self.progress = max(0.0, min(100.0, self.progress))
+        return self
+
+
+@router.post("/{lecture_id}/watch")
+def record_watch(
+    lecture_id: int,
+    data: WatchProgress,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Upsert the current user's watch progress for a lecture (used to power Watch History)."""
+    if not db.query(models.Lecture).filter(models.Lecture.id == lecture_id).first():
+        raise HTTPException(status_code=404, detail="Lecture not found")
+    entry = db.query(models.WatchHistory).filter(
+        models.WatchHistory.user_id == user.id,
+        models.WatchHistory.lecture_id == lecture_id,
+    ).first()
+    if entry:
+        entry.progress = data.progress
+        entry.last_watched = datetime.now(timezone.utc)
+    else:
+        entry = models.WatchHistory(user_id=user.id, lecture_id=lecture_id, progress=data.progress)
+        db.add(entry)
+    db.commit()
+    return {"message": "Progress saved"}

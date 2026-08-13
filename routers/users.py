@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 import models
 from auth_utils import get_current_user, get_password_hash
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 
 router = APIRouter()
@@ -13,9 +13,25 @@ class ProfileUpdate(BaseModel):
     avatar: Optional[str] = None
     language: Optional[str] = None
 
+    @field_validator("full_name")
+    @classmethod
+    def full_name_not_blank(cls, v):
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValueError("Full name cannot be blank")
+        return v
+
 class PasswordChange(BaseModel):
     old_password: str
     new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_valid(cls, v):
+        if len(v) < 8:
+            raise ValueError("New password must be at least 8 characters")
+        return v
 
 @router.get("/profile")
 def get_profile(user=Depends(get_current_user)):

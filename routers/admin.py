@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from database import get_db
 import models
-from auth_utils import get_current_admin
+from auth_utils import get_current_admin, ensure_admin_from_env, VALID_ROLES
 
 router = APIRouter()
 
@@ -22,7 +22,7 @@ def get_stats(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
 
 
 @router.get("/users")
-def get_all_users(skip: int = 0, limit: int = 50,
+def get_all_users(skip: int = 0, limit: int = Query(50, le=200),
                   db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     users = db.query(models.User).offset(skip).limit(limit).all()
     total = db.query(models.User).count()
@@ -50,6 +50,8 @@ def toggle_user(user_id: int, db: Session = Depends(get_db), admin=Depends(get_c
 
 @router.patch("/users/{user_id}/role")
 def set_role(user_id: int, role: str, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    if role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(sorted(VALID_ROLES))}")
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Not found")
@@ -80,50 +82,45 @@ def reseed_database(db: Session = Depends(get_db), admin=Depends(get_current_adm
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ── EMERGENCY: No auth required — only works if zero users exist ──
+# ── First-time setup: no auth required, but creates nothing on its own ──
 @router.get("/setup")
 @router.post("/setup")
 def first_time_setup(db: Session = Depends(get_db)):
     """
-    First-time setup endpoint. Creates admin account.
-    Safe: only works when the users table is completely empty.
-    After first use, this endpoint becomes harmless (returns 'already set up').
-    """
-    from auth_utils import get_password_hash
+    First-time setup endpoint.
 
-    user_count = db.query(models.User).count()
-    if user_count > 0:
+    Does NOT create any predictable/default admin account. It only creates
+    an admin if ADMIN_EMAIL and ADMIN_PASSWORD are configured as environment
+    variables on the server — the same check that already runs automatically
+    at startup (see main.py lifespan / auth_utils.ensure_admin_from_env).
+    """
+    admin = ensure_admin_from_env(db)
+    if admin:
+        # Seed categories and demo content alongside the admin account
+        try:
+            from seed import seed
+            seed()
+        except Exception:
+            pass
         return {
-            "message": "Already set up — admin exists",
-            "login_email": "admin@makariilamictv.com",
+            "message": f"✅ Setup complete! Admin: {admin.email}",
+            "next_step": "Login at /api/auth/login with the credentials you configured",
+        }
+
+    if db.query(models.User).filter(models.User.role == models.UserRole.admin).first():
+        return {
+            "message": "Already set up — an admin account exists",
             "hint": "Use /api/auth/login to get your token",
         }
 
-    # Create admin
-    admin = models.User(
-        username="admin",
-        email="admin@makariilamictv.com",
-        full_name="Makari TV Admin",
-        hashed_password=get_password_hash("admin123"),
-        role=models.UserRole.admin,
-        is_active=True,
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "No admin account exists yet. Set ADMIN_EMAIL and ADMIN_PASSWORD "
+            "(min 8 characters) as environment variables on the server, "
+            "then call this endpoint again."
+        ),
     )
-    db.add(admin)
-    db.commit()
-
-    # Seed categories and demo content
-    try:
-        from seed import seed
-        seed()
-    except Exception as e:
-        pass
-
-    return {
-        "message": "✅ Setup complete!",
-        "email": "admin@makariilamictv.com",
-        "password": "admin123",
-        "next_step": "Login at /api/auth/login",
-    }
 
 
 @router.post("/wipe-demo")
