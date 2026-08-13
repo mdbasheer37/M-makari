@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from database import SessionLocal, engine, Base
 import models
-from auth_utils import get_password_hash
+from auth_utils import get_password_hash, ensure_admin_from_env
 
 def seed():
     Base.metadata.create_all(bind=engine)
@@ -40,19 +40,10 @@ def seed():
         db.commit()
 
         # ── Admin user ───────────────────────────────────────────
-        admin = db.query(models.User).filter(models.User.email == "admin@makariilamictv.com").first()
-        if not admin:
-            admin = models.User(
-                username="admin",
-                email="admin@makariilamictv.com",
-                full_name="Makari TV Admin",
-                hashed_password=get_password_hash("admin123"),
-                role=models.UserRole.admin,
-                is_active=True,
-            )
-            db.add(admin)
-            db.commit()
-            print("✅ Admin user created")
+        # Only created if ADMIN_EMAIL / ADMIN_PASSWORD are set in the
+        # environment. No hardcoded/predictable credentials are ever
+        # created automatically — see auth_utils.ensure_admin_from_env.
+        ensure_admin_from_env(db)
 
         # ── Lectures ─────────────────────────────────────────────
         lecture_titles = [
@@ -165,7 +156,6 @@ def seed():
 
         db.commit()
         print("✅ Database seeded successfully!")
-        print("   Admin: admin@makariilamictv.com / admin123")
 
     except Exception as e:
         db.rollback()

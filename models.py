@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, Enum, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -146,6 +146,17 @@ class Favorite(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     user = relationship("User", back_populates="favorites")
     lecture = relationship("Lecture", back_populates="favorites")
+
+    __table_args__ = (
+        # Speed up the duplicate-favorite lookups done in routers/favorites.py.
+        # Duplicate prevention itself is enforced at the application level
+        # (see favorites.add_favorite) since a portable partial-unique
+        # constraint for "one favorite per lecture, one per book" needs a
+        # real migration tool to add safely to an already-deployed table —
+        # see README.md's note on adopting Alembic.
+        Index("ix_favorites_user_lecture", "user_id", "lecture_id"),
+        Index("ix_favorites_user_book", "user_id", "book_id"),
+    )
 
 class Download(Base):
     __tablename__ = "downloads"
