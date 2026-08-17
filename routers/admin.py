@@ -123,48 +123,72 @@ def first_time_setup(db: Session = Depends(get_db)):
     )
 
 
+DEMO_LECTURE_TITLES = [
+    "Tafsir of Surah Al-Baqarah - Lesson 1", "Tafsir of Surah Al-Imran",
+    "The Importance of Prayer in Islam", "How to Perform Prayer Correctly",
+    "Ramadan: The Month of Blessings", "Marriage in Islam - Part 1",
+    "Upbringing: How to Raise Children", "Islamic Creed - Pillars of Faith",
+    "40 Hadiths of Imam Nawawi - Lesson 1", "Women in Islam: Their Status",
+    "Youth and Modern Challenges", "Questions and Answers - Part 1",
+    "Remembrance and Supplication", "Tafsir of Surah Yasin",
+    "Character of Prophet Muhammad SAW", "Zakat: Its Rulings",
+    "Fasting: Conditions and Rulings", "Hajj and Umrah",
+    "Repentance and Seeking Forgiveness", "Afterlife: The World to Come",
+]
+DEMO_BOOK_TITLES = [
+    "Fiqhus Sunnah", "Riyadus Salihin", "Fortress of the Muslim",
+    "Islamic Creed", "The Sealed Nectar",
+]
+DEMO_LIVESTREAM_TITLES = ["Makari Live TV", "Friday Tafsir Live", "Ramadan Special Broadcast"]
+
+
 @router.post("/wipe-demo")
 def wipe_demo_data(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     """
-    Delete all seeded demo lectures, videos, audio and books.
-    Keeps: users, categories, live streams, real uploaded content.
-    Safe to call — only deletes records created by seed.py (first 20 lectures).
+    Delete all seeded demo lectures, videos, audio, books and live streams.
+    Keeps: users, categories, real content added via the admin dashboard.
+    Matches by the exact known demo titles (defined in seed.py) rather than
+    assumed ID ranges, so this is safe to call regardless of what order
+    content was created in, and never touches real content that happens to
+    share an ID with old demo rows.
     """
     try:
-        # Delete audio files linked to demo lectures (IDs 1-20)
-        demo_ids = list(range(1, 21))
+        demo_lecture_ids = [
+            row.id for row in db.query(models.Lecture.id).filter(
+                models.Lecture.title_en.in_(DEMO_LECTURE_TITLES)
+            ).all()
+        ]
 
-        audio_deleted = db.query(models.AudioFile).filter(
-            models.AudioFile.lecture_id.in_(demo_ids)
-        ).delete(synchronize_session=False)
+        audio_deleted = 0
+        video_deleted = 0
+        lecture_deleted = 0
+        if demo_lecture_ids:
+            audio_deleted = db.query(models.AudioFile).filter(
+                models.AudioFile.lecture_id.in_(demo_lecture_ids)
+            ).delete(synchronize_session=False)
 
-        video_deleted = db.query(models.Video).filter(
-            models.Video.lecture_id.in_(demo_ids)
-        ).delete(synchronize_session=False)
+            video_deleted = db.query(models.Video).filter(
+                models.Video.lecture_id.in_(demo_lecture_ids)
+            ).delete(synchronize_session=False)
 
-        # Delete favorites linked to demo lectures
-        db.query(models.Favorite).filter(
-            models.Favorite.lecture_id.in_(demo_ids)
-        ).delete(synchronize_session=False)
+            db.query(models.Favorite).filter(
+                models.Favorite.lecture_id.in_(demo_lecture_ids)
+            ).delete(synchronize_session=False)
 
-        # Delete watch history linked to demo lectures
-        db.query(models.WatchHistory).filter(
-            models.WatchHistory.lecture_id.in_(demo_ids)
-        ).delete(synchronize_session=False)
+            db.query(models.WatchHistory).filter(
+                models.WatchHistory.lecture_id.in_(demo_lecture_ids)
+            ).delete(synchronize_session=False)
 
-        # Delete the demo lectures themselves
-        lecture_deleted = db.query(models.Lecture).filter(
-            models.Lecture.id.in_(demo_ids)
-        ).delete(synchronize_session=False)
+            lecture_deleted = db.query(models.Lecture).filter(
+                models.Lecture.id.in_(demo_lecture_ids)
+            ).delete(synchronize_session=False)
 
-        # Delete demo books (first 5)
         book_deleted = db.query(models.Book).filter(
-            models.Book.id.in_(list(range(1, 6)))
+            models.Book.title_en.in_(DEMO_BOOK_TITLES)
         ).delete(synchronize_session=False)
 
-        # Delete demo live streams
         db.query(models.LiveStream).filter(
-            models.LiveStream.id.in_([1, 2, 3])
+            models.LiveStream.title.in_(DEMO_LIVESTREAM_TITLES)
         ).delete(synchronize_session=False)
 
         db.commit()

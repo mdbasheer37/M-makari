@@ -45,6 +45,21 @@ def create_category(data: CategoryCreate, db: Session = Depends(get_db), admin=D
     db.refresh(cat)
     return category_to_dict(cat)
 
+@router.delete("/{category_id}")
+def delete_category(category_id: int, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    cat = db.query(models.Category).filter(models.Category.id == category_id).first()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+    # Un-assign rather than delete affected lectures — they stay in the
+    # library, just without a category, so deleting a category never
+    # destroys real content.
+    affected = db.query(models.Lecture).filter(models.Lecture.category_id == category_id).update(
+        {"category_id": None}, synchronize_session=False
+    )
+    db.delete(cat)
+    db.commit()
+    return {"message": "Category deleted", "lectures_unassigned": affected}
+
 @router.get("/{slug}/lectures")
 def get_category_lectures(slug: str, skip: int = 0, limit: int = Query(20, le=100), db: Session = Depends(get_db)):
     cat = db.query(models.Category).filter(models.Category.slug == slug).first()
