@@ -8,6 +8,14 @@ from database import SessionLocal, engine, Base
 import models
 from auth_utils import get_password_hash, ensure_admin_from_env
 
+# Demo lectures/videos/audio/books/live-streams are OFF by default — a
+# production deployment shouldn't auto-fill itself with placeholder content
+# every time the server restarts (Render free-tier instances restart
+# often). Set SEED_DEMO_CONTENT=true only for local development/testing.
+# Categories still seed unconditionally as reasonable starting structure —
+# admins can delete any they don't need from the admin dashboard.
+SEED_DEMO_CONTENT = os.getenv("SEED_DEMO_CONTENT", "false").lower() == "true"
+
 def seed():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -44,6 +52,11 @@ def seed():
         # environment. No hardcoded/predictable credentials are ever
         # created automatically — see auth_utils.ensure_admin_from_env.
         ensure_admin_from_env(db)
+
+        if not SEED_DEMO_CONTENT:
+            db.commit()
+            print("✅ Categories ready. Demo content seeding is disabled (set SEED_DEMO_CONTENT=true to enable for local testing).")
+            return
 
         # ── Lectures ─────────────────────────────────────────────
         lecture_titles = [
