@@ -18,7 +18,7 @@ IS_PRODUCTION = os.getenv("ENVIRONMENT", "production") == "production"
 from routers import (
     auth, lectures, videos, audio, categories,
     search, favorites, downloads, notifications,
-    library, live, admin, users, prayer
+    library, live, admin, users, prayer, media
 )
 
 
@@ -113,6 +113,7 @@ app.include_router(users.router,         prefix="/api/users",         tags=["Use
 app.include_router(lectures.router,      prefix="/api/lectures",      tags=["Lectures"])
 app.include_router(videos.router,        prefix="/api/videos",        tags=["Videos"])
 app.include_router(audio.router,         prefix="/api/audio",         tags=["Audio"])
+app.include_router(media.router,         prefix="/api/media",         tags=["Media Upload"])
 app.include_router(categories.router,    prefix="/api/categories",    tags=["Categories"])
 app.include_router(search.router,        prefix="/api/search",        tags=["Search"])
 app.include_router(favorites.router,     prefix="/api/favorites",     tags=["Favorites"])
