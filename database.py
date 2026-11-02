@@ -11,8 +11,13 @@ if not DATABASE_URL:
     )
 
 # Render gives postgres:// — SQLAlchemy needs postgresql://
+# Also force the psycopg2 driver explicitly: newer SQLAlchemy (2.1+) defaults a
+# bare "postgresql://" URL to psycopg v3, which is not installed here
+# ("ModuleNotFoundError: No module named 'psycopg'").
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 IS_PRODUCTION = os.getenv("ENVIRONMENT", "production") == "production"
 
