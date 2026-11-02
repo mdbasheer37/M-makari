@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from typing import Optional
@@ -35,7 +36,7 @@ def get_categories(db: Session = Depends(get_db)):
 
 @router.post("/")
 def create_category(data: CategoryCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    cat = models.Category(**data.dict())
+    cat = models.Category(**data.model_dump())
     db.add(cat)
     try:
         db.commit()
@@ -68,6 +69,6 @@ def get_category_lectures(slug: str, skip: int = 0, limit: int = Query(20, le=10
     from sqlalchemy import desc
     lectures = db.query(models.Lecture).filter(
         models.Lecture.category_id == cat.id,
-        models.Lecture.is_published == True
+        or_(models.Lecture.is_published == True, models.Lecture.is_published == None),
     ).order_by(desc(models.Lecture.created_at)).offset(skip).limit(limit).all()
     return {"category": {"id": cat.id, "name_en": cat.name_en, "name_ha": cat.name_ha}, "lectures": [{"id": l.id, "title_en": l.title_en, "title_ha": l.title_ha, "thumbnail": l.thumbnail, "duration": l.duration, "view_count": l.view_count} for l in lectures]}

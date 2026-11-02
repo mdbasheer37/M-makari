@@ -39,7 +39,7 @@ def get_profile(user=Depends(get_current_user)):
 
 @router.put("/profile")
 def update_profile(data: ProfileUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    for key, val in data.dict(exclude_none=True).items():
+    for key, val in data.model_dump(exclude_none=True).items():
         setattr(user, key, val)
     db.commit()
     return {"message": "Profile updated"}

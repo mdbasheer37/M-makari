@@ -51,7 +51,7 @@ def get_book(book_id: int, db: Session = Depends(get_db)):
 
 @router.post("/books")
 def create_book(data: BookCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    book = models.Book(**data.dict())
+    book = models.Book(**data.model_dump())
     db.add(book)
     db.commit()
     db.refresh(book)

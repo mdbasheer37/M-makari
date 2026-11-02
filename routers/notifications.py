@@ -38,7 +38,7 @@ def get_unread_count(db: Session = Depends(get_db), user=Depends(get_current_use
 
 @router.post("/send")
 def send_notification(data: NotifCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    notif = models.Notification(**data.dict())
+    notif = models.Notification(**data.model_dump())
     db.add(notif)
     db.flush()
     users = db.query(models.User).filter(models.User.is_active == True).all()

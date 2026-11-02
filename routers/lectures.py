@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from typing import Optional
 from pydantic import BaseModel, model_validator
 from datetime import datetime, timezone
@@ -9,6 +9,9 @@ import models
 from auth_utils import get_current_admin, get_current_user
 
 router = APIRouter()
+
+# Published, or legacy rows where the flag is NULL (NULL != False is NULL in SQL).
+PUBLISHED = or_(models.Lecture.is_published == True, models.Lecture.is_published == None)
 
 
 class LectureCreate(BaseModel):
@@ -62,9 +65,7 @@ def get_lectures(
     is_trending: Optional[bool] = None,
     db: Session = Depends(get_db),
 ):
-    q = db.query(models.Lecture).filter(
-        (models.Lecture.is_published == True) | (models.Lecture.is_published == None)
-    )
+    q = db.query(models.Lecture).filter(PUBLISHED)
     if category_id:
         q = q.filter(models.Lecture.category_id == category_id)
     if is_featured is not None:
@@ -80,7 +81,7 @@ def get_lectures(
 def get_featured(db: Session = Depends(get_db)):
     lectures = (
         db.query(models.Lecture)
-        .filter(models.Lecture.is_featured == True)
+        .filter(models.Lecture.is_featured == True, PUBLISHED)
         .order_by(desc(models.Lecture.created_at))
         .limit(10)
         .all()
@@ -92,7 +93,7 @@ def get_featured(db: Session = Depends(get_db)):
 def get_trending(db: Session = Depends(get_db)):
     lectures = (
         db.query(models.Lecture)
-        .filter(models.Lecture.is_trending == True)
+        .filter(models.Lecture.is_trending == True, PUBLISHED)
         .order_by(desc(models.Lecture.view_count))
         .limit(10)
         .all()
@@ -104,6 +105,7 @@ def get_trending(db: Session = Depends(get_db)):
 def get_latest(db: Session = Depends(get_db)):
     lectures = (
         db.query(models.Lecture)
+        .filter(PUBLISHED)
         .order_by(desc(models.Lecture.created_at))
         .limit(20)
         .all()
@@ -115,6 +117,7 @@ def get_latest(db: Session = Depends(get_db)):
 def get_most_viewed(db: Session = Depends(get_db)):
     lectures = (
         db.query(models.Lecture)
+        .filter(PUBLISHED)
         .order_by(desc(models.Lecture.view_count))
         .limit(10)
         .all()
@@ -125,7 +128,7 @@ def get_most_viewed(db: Session = Depends(get_db)):
 @router.get("/{lecture_id}")
 def get_lecture(lecture_id: int, db: Session = Depends(get_db)):
     lec = db.query(models.Lecture).filter(models.Lecture.id == lecture_id).first()
-    if not lec:
+    if not lec or lec.is_published is False:
         raise HTTPException(status_code=404, detail="Lecture not found")
     lec.view_count = (lec.view_count or 0) + 1
     db.commit()
@@ -199,7 +202,7 @@ def update_lecture(
     if data.category_id is not None:
         if not db.query(models.Category).filter(models.Category.id == data.category_id).first():
             raise HTTPException(status_code=400, detail=f"Category {data.category_id} does not exist")
-    for key, val in data.dict(exclude_unset=True).items():
+    for key, val in data.model_dump(exclude_unset=True).items():
         setattr(lec, key, val)
     db.commit()
     db.refresh(lec)

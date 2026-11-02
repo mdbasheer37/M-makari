@@ -51,7 +51,7 @@ def get_active_streams(db: Session = Depends(get_db)):
 def create_stream(data: LiveCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     if not data.stream_url.strip():
         raise HTTPException(status_code=400, detail="Stream URL is required")
-    stream = models.LiveStream(**data.dict())
+    stream = models.LiveStream(**data.model_dump())
     db.add(stream)
     db.commit()
     db.refresh(stream)

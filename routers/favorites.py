@@ -51,7 +51,7 @@ def add_favorite(data: FavoriteCreate, db: Session = Depends(get_db), user=Depen
     existing = q.first()
     if existing:
         return {"id": existing.id, "message": "Already favorited"}
-    fav = models.Favorite(user_id=user.id, **data.dict())
+    fav = models.Favorite(user_id=user.id, **data.model_dump())
     db.add(fav)
     db.commit()
     db.refresh(fav)
