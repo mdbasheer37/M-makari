@@ -1,13 +1,17 @@
+# Render Blueprint — API (FastAPI) + PostgreSQL.
+# Files live at the repo root, so there is NO rootDir here.
 services:
   - type: web
     name: makari-islamic-tv-api
-    env: python
+    runtime: python
     region: oregon
     plan: free
-    rootDir: backend
-    buildCommand: "./build.sh"
-    startCommand: "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: bash build.sh
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: SECRET_KEY
         generateValue: true
       - key: ENVIRONMENT
@@ -16,6 +20,13 @@ services:
         fromDatabase:
           name: makari-postgres
           property: connectionString
+      # Set these in the Render dashboard (not committed):
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
 
 databases:
   - name: makari-postgres

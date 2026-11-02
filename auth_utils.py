@@ -132,6 +132,17 @@ def ensure_admin_from_env(db: Session):
 VALID_ROLES = {"user", "admin", "moderator"}
 
 
+def get_current_super_admin(
+    current_user: models.User = Depends(get_current_user),
+) -> models.User:
+    """Full admins only (moderators are NOT allowed). Used for user/role
+    management and destructive maintenance endpoints, so a moderator can
+    never promote themselves or others to admin."""
+    if current_user.role != models.UserRole.admin:
+        raise HTTPException(status_code=403, detail="Full admin access required")
+    return current_user
+
+
 def get_optional_user(
     db: Session = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),

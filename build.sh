@@ -3,7 +3,8 @@
 set -o errexit
 
 echo "📦 Installing Python packages..."
+pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "🗄️  Database will be initialised on first request (via lifespan)"
+echo "🗄️  Database tables are created on startup (see lifespan in main.py)"
 echo "✅ Build complete"

@@ -22,15 +22,15 @@ env/
 .env.production
 
 # Media uploads (add your own files, don't commit them)
-backend/media/videos/*
-backend/media/audio/*
-backend/media/pdfs/*
-backend/media/images/*
-backend/media/thumbnails/*
-!backend/media/videos/.gitkeep
-!backend/media/audio/.gitkeep
-!backend/media/pdfs/.gitkeep
-!backend/media/images/.gitkeep
+media/videos/*
+media/audio/*
+media/pdfs/*
+media/images/*
+media/thumbnails/*
+!media/videos/.gitkeep
+!media/audio/.gitkeep
+!media/pdfs/.gitkeep
+!media/images/.gitkeep
 
 # OS
 .DS_Store
