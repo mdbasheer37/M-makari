@@ -108,6 +108,12 @@ def ensure_admin_from_env(db: Session):
 
     existing = db.query(models.User).filter(models.User.email == admin_email.lower()).first()
     if existing:
+        # Account was registered normally before ADMIN_EMAIL was set: promote it
+        # so the owner gets the Admin Panel. Password is left unchanged.
+        if existing.role != models.UserRole.admin:
+            existing.role = models.UserRole.admin
+            db.commit()
+            print(f"✅ Existing account promoted to admin: {admin_email}")
         return existing
 
     if len(admin_password) < 8:
