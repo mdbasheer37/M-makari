@@ -43,6 +43,20 @@ async def lifespan(app: FastAPI):
             seed()
         except Exception as e:
             logger.warning(f"Seed skipped: {e}")
+
+        # 4. Create the admin account from ADMIN_EMAIL / ADMIN_PASSWORD if set.
+        #    Previously this only ran when someone manually called /api/auth/setup,
+        #    so the admin login never existed on a fresh deploy.
+        try:
+            from database import SessionLocal
+            from auth_utils import ensure_admin_from_env
+            _db = SessionLocal()
+            try:
+                ensure_admin_from_env(_db)
+            finally:
+                _db.close()
+        except Exception as e:
+            logger.warning(f"Admin bootstrap skipped: {e}")
     else:
         logger.error("Skipping table creation/seed — database unavailable at startup")
 
