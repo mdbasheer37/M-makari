@@ -59,7 +59,7 @@ def lecture_to_dict(lec):
 @router.get("/")
 def get_lectures(
     skip: int = 0,
-    limit: int = Query(100, le=100),
+    limit: int = Query(100, le=500),  # raised so the admin picker (and older cached app versions asking for 200) work
     category_id: Optional[int] = None,
     is_featured: Optional[bool] = None,
     is_trending: Optional[bool] = None,
